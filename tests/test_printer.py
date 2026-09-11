@@ -105,13 +105,14 @@ class PrinterTests(unittest.TestCase):
         return worker
 
     def test_home_then_jog_wire_sequence(self):
-        self.motion_config()
-        origin = b"X:0.00 Y:0.00 Z:0.00 E:0 Count X:0 Y:0 Z:0\nok\n"
-        raised = b"X:0.00 Y:0.00 Z:1.00 E:0\nok\n"
+        self.printer.config = replace(load_config("ender3.toml"),
+            port=self.printer.config.port, timeout=0.15, startup_wait=0, motion_timeout=0.2)
+        origin = b"X:-3.00 Y:-10.00 Z:0.00 E:0 Count X:-240 Y:-800 Z:0\nok\n"
+        raised = b"X:-3.00 Y:-10.00 Z:1.00 E:0\nok\n"
         worker = self.sequence([b"ok\n"] * 4 + [origin] +
                                [b"ok\n", origin] + [b"ok\n"] * 4 + [raised])
-        self.assertEqual(self.printer.home(), dict(x=0, y=0, z=0))
-        self.assertEqual(self.printer.jog("z", 1), dict(x=0, y=0, z=1))
+        self.assertEqual(self.printer.home(), dict(x=-3, y=-10, z=0))
+        self.assertEqual(self.printer.jog("z", 1), dict(x=-3, y=-10, z=1))
         worker.join()
         self.assertEqual(self.commands, ["G21", "G90", "G28", "M400", "M114",
             "M400", "M114", "G21", "G90", "G1 Z1.0000 F60.0000", "M400", "M114"])
