@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "huddle-demos"
+version = "0.1.0"
+description = "Raspberry Pi printer demonstration tools"
+requires-python = ">=3.11"
+dependencies = ["pyserial==3.5"]
+
+[project.scripts]
+huddle-plotter = "plotter.cli:main"
+
+[tool.setuptools]
+packages = ["shared", "plotter"]
