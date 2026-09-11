@@ -1,8 +1,8 @@
 # Huddle Demos
 
 Fresh Raspberry Pi demonstrations that repurpose a USB G-code 3D printer.
-The plotter currently provides **serial discovery and status-only communication**.
-Drawing and movement come later. The existing `microscope/` directory is reserved
+The plotter currently provides **serial discovery, status queries, and manual
+homing/small XYZ jogs**. Drawing comes later. The existing `microscope/` directory is reserved
 for future work; no microscope functionality is implemented.
 
 ## Requirements and installation
@@ -63,8 +63,9 @@ exit with status 1. An acknowledgment proves communication, not hardware readine
 
 The supported protocol is newline-delimited, Marlin/RepRap-style G-code with `ok`
 acknowledgments. Firmware compatibility still needs verification on your printer.
-This implementation accepts only exact `M115` and `M105` queries; it exposes no
-raw-command, homing, motion, heater-setting, or persistent-setting interface.
+The status interface accepts only exact `M115` and `M105` queries. The separate
+manual interface below enables explicit homing and bounded movement. Neither
+interface exposes raw commands, heater settings, or persistent settings.
 
 Opening USB serial can reset some controller boards even though the program
 does not deliberately assert DTR/RTS. Never connect during a print. If your
@@ -80,6 +81,54 @@ After confirming firmware communication, optionally request temperatures:
 `M105` reports temperatures; it does not set them. Command references:
 [Marlin M115](https://marlinfw.org/docs/gcode/M115.html) and
 [Marlin M105](https://marlinfw.org/docs/gcode/M105.html).
+
+## Manual homing and first axis tests
+
+The supplied `ender3.toml` describes this workshop printer: user-reported nominal
+X/Y bounds of 0–220 mm and a measured safe Z maximum of 200 mm from the modified
+home position. The physical Z-stop attachment must remain in the same position.
+Verify X/Y bounds before approaching their ends. These limits apply to this
+program's jogs; they do not update firmware or constrain LCD moves or G28's
+firmware-controlled homing path. Homing must already be mechanically safe.
+
+With the printer idle, the bed clear, and the power switch accessible:
+
+```bash
+.venv/bin/python -m plotter manual --config ender3.toml
+```
+
+Connecting alone does not send motion commands, though opening USB may reset the
+controller. At `printer>` enter **one command at a time**, observe completion,
+and proceed only if the result is correct:
+
+1. `home` — full XYZ homing, then report firmware coordinates.
+2. `z 1` — raise Z by 1 mm on this verified printer orientation.
+3. `x 5` — move X in its positive direction by 5 mm.
+4. `y 5` — move Y in its positive direction by 5 mm.
+5. `position` — report firmware coordinates.
+6. `quit` — close the connection without additional motion.
+
+Do not paste the whole sequence. Stop after any unexpected movement. Ctrl+C,
+quit, disconnects, and timeouts **do not stop a move already accepted by the
+printer**; use the physical power switch if motion is unsafe.
+
+The session stays connected and requires its own successful `home` before any
+jog. Each jog is limited to 5 mm by `max_jog`; negative increments are supported
+within the configured bounds. Feed rates are `xy_feed=300` and `z_feed=60` mm/min
+(5 and 1 mm/s); firmware feed overrides may affect actual speed. Keep the LCD
+speed override at 100%. Homing uses firmware speeds. Motion acknowledgment and
+completion have a separate `motion_timeout` of 120 seconds.
+
+The implementation uses [G28](https://marlinfw.org/docs/gcode/G028.html) to home,
+[M400](https://marlinfw.org/docs/gcode/M400.html) to wait for moves, and
+[M114](https://marlinfw.org/docs/gcode/M114.html) to read firmware coordinates.
+Jogs use explicit millimeter units and absolute targets derived from current
+coordinates. A target mismatch or transport failure closes the session.
+Coordinates are firmware estimates, not physical feedback: slipping, hand
+movement, or released motors can invalidate them. Do not use LCD movement or
+move axes by hand during a session. Rehome if motors release or position becomes
+uncertain; do not leave a motion session unattended. No homed state is saved
+across connections. A physical limit switch is not a substitute for these bounds.
 
 ## Configuration and logging
 
@@ -101,7 +150,7 @@ and logs are ignored by Git.
 ## Troubleshooting and shutdown
 
 - **No device:** check printer power, USB data cable, and another USB port. Run
-  `list-ports` again. No USB serial devices were present during implementation.
+  `list-ports` again. The workshop Ender 3 was subsequently verified at `/dev/ttyUSB0`, 115200 baud.
 - **Permission denied:** inspect `ls -l /dev/ttyACM0` (substitute your device).
   If its group is `dialout`, run `sudo usermod -aG dialout "$USER"`, then log out
   and back in before retrying. The inspected user was not in `dialout`. Do not
@@ -130,4 +179,6 @@ and logs are ignored by Git.
 ```
 
 Tests send bytes only to operating-system pseudo-terminals, never physical
-serial devices. Physical printer communication has not yet been validated.
+serial devices. The user validated physical M115 communication with the Ender 3 (firmware
+2.0.8.2) at 115200 baud and Auto Home through its LCD. Python-driven homing
+and jogging still need physical validation.

@@ -6,6 +6,7 @@ import select
 import threading
 import unittest
 from unittest.mock import patch
+from dataclasses import replace
 
 from shared.config import PrinterConfig, load_config
 from shared.printer import Printer, PrinterError
@@ -83,9 +84,97 @@ class PrinterTests(unittest.TestCase):
         self.assertIsNone(self.printer._serial)
 
 
+    def motion_config(self):
+        self.printer.config = replace(self.printer.config, motion_timeout=0.2,
+            x_min=0, x_max=220, y_min=0, y_max=220, z_min=0, z_max=200)
+
+    def sequence(self, responses):
+        self.commands = []
+        def device():
+            for response in responses:
+                data = b""
+                while not data.endswith(b"\n"):
+                    if not select.select([self.master], [], [], 1)[0]:
+                        return
+                    data += os.read(self.master, 1)
+                self.commands.append(data.decode().strip())
+                os.write(self.master, response)
+        worker = threading.Thread(target=device)
+        worker.start()
+        self.addCleanup(worker.join)
+        return worker
+
+    def test_home_then_jog_wire_sequence(self):
+        self.motion_config()
+        origin = b"X:0.00 Y:0.00 Z:0.00 E:0 Count X:0 Y:0 Z:0\nok\n"
+        raised = b"X:0.00 Y:0.00 Z:1.00 E:0\nok\n"
+        worker = self.sequence([b"ok\n"] * 4 + [origin] +
+                               [b"ok\n", origin] + [b"ok\n"] * 4 + [raised])
+        self.assertEqual(self.printer.home(), dict(x=0, y=0, z=0))
+        self.assertEqual(self.printer.jog("z", 1), dict(x=0, y=0, z=1))
+        worker.join()
+        self.assertEqual(self.commands, ["G21", "G90", "G28", "M400", "M114",
+            "M400", "M114", "G21", "G90", "G1 Z1.0000 F60.0000", "M400", "M114"])
+        self.printer.close()
+        self.assertFalse(self.printer._homed)
+
+    def test_motion_requires_limits_and_session_home(self):
+        with self.assertRaises(ValueError):
+            self.printer.home()
+        self.motion_config()
+        with self.assertRaisesRegex(ValueError, "Run home"):
+            self.printer.jog("x", 1)
+        self.assertFalse(select.select([self.master], [], [], 0)[0])
+
+    def test_invalid_jogs_write_nothing(self):
+        self.motion_config()
+        self.printer._homed = True
+        for axis, distance in [("z", 6), ("z", float("nan")), ("z", float("inf")),
+                               ("z", 0), ("xy", 1), ("", 1)]:
+            with self.assertRaises(ValueError):
+                self.printer.jog(axis, distance)
+        self.assertFalse(select.select([self.master], [], [], 0)[0])
+
+    def test_limits_reject_without_motion(self):
+        self.motion_config()
+        self.printer._homed = True
+        for axis, distance, xyz in [("z", 1, "X:0 Y:0 Z:200"),
+                                    ("x", -1, "X:0 Y:0 Z:0"),
+                                    ("y", 1, "X:0 Y:220 Z:0")]:
+            worker = self.sequence([b"ok\n", (xyz + "\nok\n").encode()])
+            with self.assertRaisesRegex(ValueError, "outside configured"):
+                self.printer.jog(axis, distance)
+            worker.join()
+            self.assertEqual(self.commands, ["M400", "M114"])
+
+    def test_missing_position_closes_connection(self):
+        self.sequence([b"ok\n", b"ok\n"])
+        with self.assertRaisesRegex(PrinterError, "No valid XYZ"):
+            self.printer.position()
+        self.assertIsNone(self.printer._serial)
+
+    def test_home_completion_timeout_clears_homing(self):
+        self.motion_config()
+        self.sequence([b"ok\n"] * 3 + [b"echo:busy: processing\n"])
+        with self.assertRaises(PrinterError):
+            self.printer.home()
+        self.assertFalse(self.printer._homed)
+        self.assertIsNone(self.printer._serial)
+
+    def test_reported_target_mismatch_closes(self):
+        self.motion_config()
+        self.printer._homed = True
+        pos = b"X:0 Y:0 Z:0\nok\n"
+        self.sequence([b"ok\n", pos] + [b"ok\n"] * 4 + [pos])
+        with self.assertRaisesRegex(PrinterError, "differs from target"):
+            self.printer.jog("z", 1)
+        self.assertFalse(self.printer._homed)
+        self.assertIsNone(self.printer._serial)
+
+
 class ConfigurationTests(unittest.TestCase):
     def test_invalid_settings(self):
-        for setting in ({"baud": 0}, {"baud": True}, {"timeout": 0},
+        for setting in ({"x_min": 0}, {"z_min": 200, "z_max": 0}, {"xy_feed": 0}, {"motion_timeout": -1}, {"baud": 0}, {"baud": True}, {"timeout": 0},
                         {"timeout": float("nan")}, {"startup_wait": -1}, {"port": ""}):
             with self.subTest(setting=setting), self.assertRaises(ValueError):
                 PrinterConfig(**setting)

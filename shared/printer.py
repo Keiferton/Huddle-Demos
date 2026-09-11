@@ -1,6 +1,7 @@
-"""Synchronous, status-only G-code transport. No automatic retries or motion."""
+"""Synchronous G-code transport with explicit homing and bounded jogs."""
 
 import logging
+import math
 import re
 import time
 
@@ -27,6 +28,7 @@ class Printer:
         self.config = config
         self._serial = None
         self._pending = bytearray()
+        self._homed = False
 
     def connect(self):
         if self._serial is not None:
@@ -57,6 +59,7 @@ class Printer:
         return self
 
     def close(self):
+        self._homed = False
         if self._serial is not None:
             self._serial.close()
             self._serial = None
@@ -99,6 +102,9 @@ class Printer:
         """
         if command not in STATUS_COMMANDS:
             raise ValueError("Only exact M115 and M105 status queries are supported")
+        return self._send(command)
+
+    def _send(self, command, timeout=None):
         if self._serial is None:
             raise PrinterError("Not connected")
         try:
@@ -106,12 +112,14 @@ class Printer:
             data = (command + "\n").encode("ascii")
             if self._serial.write(data) != len(data):
                 raise PrinterError("Incomplete serial write")
-            deadline = time.monotonic() + self.config.timeout
+            deadline = time.monotonic() + (self.config.timeout if timeout is None else timeout)
             responses = []
             while time.monotonic() < deadline:
                 line = self._read_line(deadline)
                 if line is None:
                     break
+                if line.lower() == "start" or line.startswith("FIRMWARE_NAME:") and command != "M115":
+                    raise PrinterError("Printer restarted during session; reconnect and home again")
                 responses.append(line)
                 if re.match(r"^ok(?:\s|$)", line, re.IGNORECASE):
                     return responses
@@ -119,3 +127,63 @@ class Printer:
         except BaseException:
             self.close()
             raise
+
+    def require_limits(self):
+        if any(getattr(self.config, axis + "_min") is None for axis in "xyz"):
+            raise ValueError("Configure x/y/z_min and x/y/z_max before homing or jogging")
+
+    def position(self):
+        """Firmware coordinates, not independent measurement of physical position."""
+        self._send("M400", self.config.motion_timeout)
+        lines = self._send("M114")
+        number = r"([-+]?(?:\d+(?:\.\d*)?|\.\d+))"
+        for line in lines:
+            match = re.search(r"(?:^|\s)X:" + number + r"\s+Y:" + number + r"\s+Z:" + number + r"(?:\s|$)", line)
+            if match:
+                result = dict(zip("xyz", map(float, match.groups())))
+                if all(math.isfinite(v) for v in result.values()):
+                    return result
+        self.close()
+        raise PrinterError("No valid XYZ position in M114 response; session closed")
+
+    def _check_position(self, position):
+        for axis, value in position.items():
+            low = getattr(self.config, axis + "_min")
+            high = getattr(self.config, axis + "_max")
+            if not low <= value <= high:
+                raise ValueError(f"{axis.upper()}={value:g} is outside configured {low:g}..{high:g} mm")
+
+    def home(self):
+        """Explicit full homing; firmware controls the homing path and speed."""
+        self.require_limits()
+        self._homed = False
+        self._send("G21")
+        self._send("G90")
+        self._send("G28", self.config.motion_timeout)
+        position = self.position()
+        self._check_position(position)
+        self._homed = True
+        return position
+
+    def jog(self, axis, distance):
+        self.require_limits()
+        if not self._homed:
+            raise ValueError("Run home in this session before jogging")
+        if axis not in "xyz" or len(axis) != 1:
+            raise ValueError("Axis must be x, y, or z")
+        if not math.isfinite(distance) or not 0 < abs(distance) <= self.config.max_jog:
+            raise ValueError(f"Jog must be nonzero and at most {self.config.max_jog:g} mm")
+        current = self.position()
+        self._check_position(current)
+        target = dict(current)
+        target[axis] = round(current[axis] + distance, 4)
+        self._check_position(target)
+        feed = self.config.z_feed if axis == "z" else self.config.xy_feed
+        self._send("G21")
+        self._send("G90")
+        self._send(f"G1 {axis.upper()}{target[axis]:.4f} F{feed:.4f}")
+        actual = self.position()
+        if any(abs(actual[a] - target[a]) > 0.05 for a in "xyz"):
+            self.close()
+            raise PrinterError("Reported position differs from target; inspect printer before rehoming")
+        return actual
