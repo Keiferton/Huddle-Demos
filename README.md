@@ -85,7 +85,8 @@ After confirming firmware communication, optionally request temperatures:
 ## Manual homing and first axis tests
 
 The supplied `ender3.toml` describes this workshop printer: user-reported nominal
-X/Y bounds of 0–220 mm and a measured safe Z maximum of 200 mm from the modified
+X/Y maxima of 220 mm, a reported X home coordinate of -3 mm (configured as
+x_min), and a measured safe Z maximum of 200 mm from the modified
 home position. The physical Z-stop attachment must remain in the same position.
 Verify X/Y bounds before approaching their ends. These limits apply to this
 program's jogs; they do not update firmware or constrain LCD moves or G28's
