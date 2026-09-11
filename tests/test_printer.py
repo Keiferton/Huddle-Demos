@@ -115,7 +115,7 @@ class PrinterTests(unittest.TestCase):
         self.assertEqual(self.printer.jog("z", 1), dict(x=-3, y=-10, z=1))
         worker.join()
         self.assertEqual(self.commands, ["G21", "G90", "G28", "M400", "M114",
-            "M400", "M114", "G21", "G90", "G1 Z1.0000 F120.0000", "M400", "M114"])
+            "M400", "M114", "G21", "G90", "G1 Z1.0000 F300.0000", "M400", "M114"])
         self.printer.close()
         self.assertFalse(self.printer._homed)
 
