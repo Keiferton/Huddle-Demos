@@ -202,9 +202,26 @@ Equivalent terminal export, from the repository root:
 ```
 
 The output includes full homing, a pen lift before XY travel, and a final pen
-lift. Verify clearance during homing with the mounted pen. Our manual CLI does
-not yet stream G-code files; these exports are for inspection before a separate
-physical file-running test. No exported artwork has been run on hardware yet.
+lift. Verify clearance during homing with the mounted pen. Run a checked export from the repository root after closing any manual serial
+session with `quit`:
+
+```bash
+.venv/bin/python -m plotter run-file --config ender3.toml --dry-run output/first-art.gcode
+.venv/bin/python -m plotter run-file --config ender3.toml output/first-art.gcode
+```
+
+The first command checks the entire file without opening serial. The second
+**physically homes and draws**, then lifts the pen and disconnects. Keep paper
+secured and the homing/travel route clear of clips. There is no extra home or
+center command needed. Ctrl+C or a serial failure does not stop moves already
+queued; use the physical power switch if motion is unsafe.
+
+The runner accepts this exporter's absolute linear moves and startup header,
+checks workspace bounds, feeds and pen heights before connecting, waits for
+acknowledgments, and verifies the final position after motion completes.
+It rejects arbitrary G-code, heater commands, relative mode, and arcs in files
+(the interactive arc commands remain available). First physical SVG file
+execution is still pending.
 
 To reproduce installation on another Pi (Git and Inkscape required):
 

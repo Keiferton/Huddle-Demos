@@ -8,6 +8,7 @@ import tomllib
 
 import serial
 
+from plotter.job import load_job, run_job
 from shared.config import load_config
 from shared.printer import Printer, PrinterError, discover_ports
 
@@ -18,7 +19,11 @@ def main(argv=None):
     commands.add_parser("list-ports", help="List devices without opening any serial port")
     status = commands.add_parser("status", aliases=["connect"], help="Connect, query status, then disconnect")
     motion = commands.add_parser("manual", help="Interactive homing and single-axis jogs")
-    for option in (status, motion):
+    job = commands.add_parser("run-file", help="Validate and run a Huddle-exported G-code file")
+    job.add_argument("file")
+    job.add_argument("--workspace", default="plotter/workspace.toml")
+    job.add_argument("--dry-run", action="store_true", help="Validate without opening the serial port")
+    for option in (status, motion, job):
         add_connection_arguments(option)
     status.add_argument("--query", choices=["firmware", "temperature"], default="firmware")
     motion.add_argument("--workspace", default="plotter/workspace.toml", help="Drawing workspace and pen heights")
@@ -51,6 +56,16 @@ def run(args):
             return 0
         config = load_config(args.config, port=args.port, baud=args.baud,
                              timeout=args.timeout, startup_wait=args.startup_wait)
+        if args.action == "run-file":
+            commands = load_job(args.file, config, args.workspace)
+            print(f"Validated {len(commands)} commands: home, draw, finish pen-up.")
+            if args.dry_run:
+                print("Dry run only; no serial connection opened.")
+                return 0
+            with Printer(config) as printer:
+                position = run_job(printer, commands)
+            print("Drawing finished; firmware position: " + str(position))
+            return 0
         if args.action == "manual":
             printer = Printer(config)
             printer.require_limits()
