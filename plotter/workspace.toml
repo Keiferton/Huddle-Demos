@@ -10,3 +10,8 @@ width = 100.0
 height = 100.0
 origin_x = 86.25
 origin_y = 60.0
+
+# User calibrated with the mounted pen: contact at Z=0, clear at Z=2 mm.
+[pen]
+down_z = 0.0
+up_z = 2.0

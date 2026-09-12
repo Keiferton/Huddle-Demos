@@ -145,7 +145,9 @@ with the mounted pen; its front/back offset has not been measured.
 
 This file is saved for the upcoming drawing code. The current manual CLI does
 not load or enforce drawing bounds; `ender3.toml` still defines printer travel
-limits so homing remains possible. Pen-up/down Z heights are not yet calibrated.
+limits so homing remains possible. The mounted pen was calibrated at Z=0 for
+contact and Z=2 mm for clearance, recorded in the workspace file’s [pen] section.
+Recheck these heights if the pen, paper thickness, or Z home reference changes.
 
 ## Configuration and logging
 
