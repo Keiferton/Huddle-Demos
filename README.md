@@ -107,7 +107,7 @@ and proceed only if the result is correct:
 3. `x 5` — move X in its positive direction by 5 mm.
 4. `y 5` — move Y in its positive direction by 5 mm.
 5. `position` — report firmware coordinates.
-6. `quit` — close the connection without additional motion.
+6. `quit` (or `exit` / `q`) — close the connection without additional motion.
 
 Do not paste the whole sequence. Stop after any unexpected movement. Ctrl+C,
 quit, disconnects, and timeouts **do not stop a move already accepted by the

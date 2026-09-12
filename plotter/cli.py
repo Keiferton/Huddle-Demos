@@ -71,7 +71,7 @@ def run(args):
 
 def manual_session(printer, workspace="plotter/workspace.toml"):
     print("Connected. No motion until you enter home, center, or an axis jog.")
-    print("Commands: home, center, position, x MM, y MM, z MM, quit")
+    print("Commands: home, center, position, x MM, y MM, z MM, quit/exit/q")
     print("Home first. Enter ONE command at a time and inspect each move.")
     print("Keep the area clear and the power switch accessible. Ctrl+C is NOT an emergency stop.")
     print("Do not move axes by hand or use LCD movement during this session.")
@@ -87,7 +87,7 @@ def manual_session(printer, workspace="plotter/workspace.toml"):
             return
         if not parts:
             continue
-        if parts == ["quit"]:
+        if parts in (["quit"], ["exit"], ["q"]):
             return
         try:
             if parts == ["home"]:
@@ -99,7 +99,7 @@ def manual_session(printer, workspace="plotter/workspace.toml"):
             elif len(parts) == 2 and parts[0] in ("x", "y", "z"):
                 position = printer.jog(parts[0], float(parts[1]))
             else:
-                print("Use: home, center, position, x MM, y MM, z MM, quit")
+                print("Use: home, center, position, x MM, y MM, z MM, quit/exit/q")
                 continue
             print("Firmware position: " + " ".join(f"{a.upper()}={v:g}" for a, v in position.items()))
         except ValueError as exc:
