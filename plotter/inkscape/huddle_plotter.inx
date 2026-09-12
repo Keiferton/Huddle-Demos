@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+  <name>Huddle pen plotter</name>
+  <id>huddle.output.plotter</id>
+  <dependency type="extension">org.inkscape.output.svg.inkscape</dependency>
+  <label>100 × 100 mm page. Convert text to paths. Uses the workspace and pen heights from Huddle-Demos. Saves a file only.</label>
+  <param name="draw-speed" type="float" min="1" max="50" precision="1" gui-text="Drawing speed (mm/s)">20</param>
+  <output>
+    <extension>.gcode</extension>
+    <mimetype>text/plain</mimetype>
+    <filetypename>Huddle pen plotter (*.gcode)</filetypename>
+    <filetypetooltip>G-code for the calibrated Ender 3 pen plotter</filetypetooltip>
+    <dataloss>true</dataloss>
+  </output>
+  <script><command location="inx" interpreter="python">huddle_plotter.py</command></script>
+</inkscape-extension>

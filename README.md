@@ -2,7 +2,7 @@
 
 Fresh Raspberry Pi demonstrations that repurpose a USB G-code 3D printer.
 The plotter currently provides **serial discovery, status queries, and manual
-homing/small XYZ jogs**. Drawing comes later. The existing `microscope/` directory is reserved
+homing, XYZ jogs, arcs, and SVG-to-G-code export**. The existing `microscope/` directory is reserved
 for future work; no microscope functionality is implemented.
 
 ## Requirements and installation
@@ -177,6 +177,51 @@ bounds, so homing and positioning outside the drawing square remain possible. Th
 contact and Z=2 mm for clearance, recorded in the workspace file’s [pen] section.
 Recheck these heights if the pen, paper thickness, or Z home reference changes.
 
+## Inkscape SVG export
+
+Inkscape 1.4 and the [GcodePlot converter](https://github.com/arpruss/gcodeplot)
+were verified on this Pi with Python 3.13. The local exporter is file-only:
+exporting never connects to the printer. The sample `plotter/examples/first-art.svg`
+is a 20 mm square with diagonals, centered on a 100 mm page.
+
+Already installed on this Pi: restart Inkscape, open the sample, then choose
+**File → Save a Copy → Huddle pen plotter (*.gcode)**. The export dialog lets you
+set drawing speed (default 20 mm/s for this first artwork test). Travel remains
+50 mm/s and Z remains 4 mm/s, read from `ender3.toml`; manual jog speeds are unchanged.
+The exporter reads `plotter/workspace.toml` for the workspace offset and pen heights.
+
+For your own art, use a **100 × 100 mm page**, keep paths inside the page, use a
+black stroke with no fill for outlines, and convert text/shapes via **Path → Object
+to Path**. Bitmap images need tracing first. The exporter preserves size and page
+placement; it does not automatically resize artwork or fill shaded regions.
+
+Equivalent terminal export, from the repository root:
+
+```bash
+.venv/bin/python -m plotter.convert plotter/examples/first-art.svg output/first-art.gcode
+```
+
+The output includes full homing, a pen lift before XY travel, and a final pen
+lift. Verify clearance during homing with the mounted pen. Our manual CLI does
+not yet stream G-code files; these exports are for inspection before a separate
+physical file-running test. No exported artwork has been run on hardware yet.
+
+To reproduce installation on another Pi (Git and Inkscape required):
+
+```bash
+git clone https://github.com/arpruss/gcodeplot.git .tools/gcodeplot
+git -C .tools/gcodeplot checkout dc9ca1eef3b7af4a253de3adfbd0f1cac3da8364
+python3 plotter/inkscape/install.py
+```
+
+The installer adds only `huddle_plotter.inx` and `huddle_plotter.py` to the user's
+Inkscape extensions folder. It links back to this checkout, so keep the repository
+and `.tools/gcodeplot` in place. Run the installer again if the checkout moves.
+GcodePlot stays separate and Git-ignored in `.tools/` under its upstream license.
+Generated files belong in the Git-ignored `output/` folder. Restart Inkscape if
+the export format is missing. Conversion errors appear instead of a valid export;
+text must be paths and paths must fit the workspace.
+
 ## Configuration and logging
 
 ```bash
@@ -227,5 +272,5 @@ and logs are ignored by Git.
 
 Tests send bytes only to operating-system pseudo-terminals, never physical
 serial devices. The user validated physical M115 communication with the Ender 3 (firmware
-2.0.8.2) at 115200 baud and Auto Home through its LCD. Python-driven homing
-and jogging still need physical validation.
+2.0.8.2) at 115200 baud and Auto Home through its LCD. The user has since verified Python-driven homing, XYZ and diagonal movement,
+pen contact at Z=0 and clearance at Z=2, a small square, and circles.

@@ -11,3 +11,5 @@ dist/
 printer.toml
 captures/
 output/
+
+.tools/
