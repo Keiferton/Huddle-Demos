@@ -195,11 +195,26 @@ class Printer:
         self._check_position(target)
         return self._move_axis(axis, current, target)
 
+    def move_xy(self, x, y):
+        """Move X and Y together to absolute coordinates, keeping Z unchanged."""
+        self.require_limits()
+        if not self._homed:
+            raise ValueError("Run home in this session before positioning")
+        if not all(math.isfinite(value) for value in (x, y)):
+            raise ValueError("X and Y must be finite coordinates")
+        self._check_position(dict(x=x, y=y))
+        current = self.position()
+        self._check_position(current)
+        target = dict(current, x=round(x, 4), y=round(y, 4))
+        self._check_position(target)
+        return self._move_axis("xy", current, target)
+
     def _move_axis(self, axis, current, target):
         feed = self.config.z_feed if axis == "z" else self.config.xy_feed
         self._send("G21")
         self._send("G90")
-        self._send(f"G1 {axis.upper()}{target[axis]:.4f} F{feed:.4f}")
+        coordinates = " ".join(f"{a.upper()}{target[a]:.4f}" for a in axis)
+        self._send(f"G1 {coordinates} F{feed:.4f}")
         actual = self.position()
         if any(abs(actual[a] - target[a]) > 0.05 for a in "xyz"):
             self.close()

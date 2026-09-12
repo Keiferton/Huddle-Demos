@@ -126,5 +126,4 @@ def center_pen(printer, path):
     # Never lower a pen that is already higher than its calibrated clearance.
     current = printer.position()
     printer.move_to("z", max(up, current["z"]))
-    printer.move_to("x", ox + width / 2)
-    return printer.move_to("y", oy + height / 2)
+    return printer.move_xy(ox + width / 2, oy + height / 2)

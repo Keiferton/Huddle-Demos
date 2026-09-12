@@ -145,7 +145,8 @@ with the mounted pen; its front/back offset has not been measured.
 
 The manual `center` command loads this file (override with `--workspace PATH`).
 After `home`, enter `center`: it lifts to Z=2 (or retains a higher current Z),
-then moves X and Y to the workspace center, waiting for each axis to finish.
+then moves X and Y together diagonally to the workspace center. The Z lift
+finishes before XY travel begins, and the command waits for XY to finish.
 Keep the route clear of clips and check the estimated center visually.
 Individual jogs still use printer travel limits from `ender3.toml`, not drawing
 bounds, so homing and positioning outside the drawing square remain possible. The mounted pen was calibrated at Z=0 for
