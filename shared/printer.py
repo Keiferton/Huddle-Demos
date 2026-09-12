@@ -180,6 +180,20 @@ class Printer:
         self._check_position(target)
         return self._move_axis(axis, current, target)
 
+    def jog_xy(self, x, y):
+        """Apply relative X/Y distances as one coordinated move."""
+        self.require_limits()
+        if not self._homed:
+            raise ValueError("Run home in this session before jogging")
+        if (not all(math.isfinite(v) and abs(v) <= self.config.max_jog for v in (x, y))
+                or (x == 0 and y == 0)):
+            raise ValueError(f"Jog must move at least one axis, at most {self.config.max_jog:g} mm per axis")
+        current = self.position()
+        self._check_position(current)
+        target = dict(current, x=round(current["x"] + x, 4), y=round(current["y"] + y, 4))
+        self._check_position(target)
+        return self._move_axis("xy", current, target)
+
     def move_to(self, axis, value):
         """Move one axis to an absolute coordinate within configured travel limits."""
         self.require_limits()

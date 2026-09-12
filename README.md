@@ -115,7 +115,9 @@ printer**; use the physical power switch if motion is unsafe.
 
 The session stays connected and requires its own successful `home` before any
 jog. The Ender 3 profile allows jogs up to 100 mm with `max_jog`; negative increments are supported
-within the configured bounds. The Ender 3 profile uses `xy_feed=3000` and `z_feed=240` mm/min
+within the configured bounds. Combine X/Y with `x 5 y 5` (or `y 5 x 5`)
+for one diagonal move; these are relative distances and Z stays unchanged.
+The jog cap applies per axis. The Ender 3 profile uses `xy_feed=3000` and `z_feed=240` mm/min
 (50 and 4 mm/s); firmware feed overrides may affect actual speed. Keep the LCD
 speed override at 100%. Homing uses firmware speeds. Motion acknowledgment and
 completion have a separate `motion_timeout` of 120 seconds.

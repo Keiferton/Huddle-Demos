@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 from dataclasses import replace
 
-from plotter.cli import center_pen
+from plotter.cli import center_pen, manual_session
 from shared.config import PrinterConfig, load_config
 from shared.printer import Printer, PrinterError
 
@@ -135,6 +135,32 @@ class PrinterTests(unittest.TestCase):
         worker.join()
         self.assertEqual([c for c in self.commands if c.startswith("G1 ")],
                          ["G1 Z2.0000 F240.0000", "G1 X136.2500 Y110.0000 F3000.0000"])
+
+    def test_combined_jog_cli_sends_one_relative_xy_move(self):
+        self.motion_config()
+        self.printer._homed = True
+        worker = self.sequence([b"ok\n", b"X:100 Y:100 Z:2\nok\n"] +
+                               [b"ok\n"] * 4 + [b"X:105 Y:98 Z:2\nok\n"])
+        with patch("builtins.input", side_effect=["y -2 x 5", "q"]), patch("builtins.print"):
+            manual_session(self.printer)
+        worker.join()
+        self.assertEqual([c for c in self.commands if c.startswith("G1 ")],
+                         ["G1 X105.0000 Y98.0000 F300.0000"])
+
+    def test_combined_jog_rejects_invalid_and_out_of_bounds(self):
+        self.motion_config()
+        with self.assertRaisesRegex(ValueError, "Run home"):
+            self.printer.jog_xy(1, 1)
+        self.printer._homed = True
+        for x, y in [(6, 1), (1, float("nan")), (0, 0)]:
+            with self.assertRaises(ValueError):
+                self.printer.jog_xy(x, y)
+        self.assertFalse(select.select([self.master], [], [], 0)[0])
+        worker = self.sequence([b"ok\n", b"X:219 Y:100 Z:2\nok\n"])
+        with self.assertRaisesRegex(ValueError, "outside configured"):
+            self.printer.jog_xy(5, 1)
+        worker.join()
+        self.assertEqual(self.commands, ["M400", "M114"])
 
     def test_xy_move_rejects_unhomed_or_outside_limits(self):
         self.motion_config()
