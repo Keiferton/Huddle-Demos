@@ -71,7 +71,7 @@ def run(args):
 
 def manual_session(printer, workspace="plotter/workspace.toml"):
     print("Connected. No motion until you enter home, center, or an axis jog.")
-    print("Commands: home, center, position, x MM, y MM, x MM y MM, z MM, quit/exit/q")
+    print("Commands: home, center, position, x MM, y MM, x MM y MM, z MM, g2/g3 X Y I J, quit/exit/q")
     print("Home first. Enter ONE command at a time and inspect each move.")
     print("Keep the area clear and the power switch accessible. Ctrl+C is NOT an emergency stop.")
     print("Do not move axes by hand or use LCD movement during this session.")
@@ -96,13 +96,15 @@ def manual_session(printer, workspace="plotter/workspace.toml"):
                 position = center_pen(printer, workspace)
             elif parts == ["position"]:
                 position = printer.position()
+            elif len(parts) == 5 and parts[0] in ("g2", "g3"):
+                position = printer.arc(parts[0], *(float(v) for v in parts[1:]))
             elif len(parts) == 4 and (parts[0], parts[2]) in (("x", "y"), ("y", "x")):
                 offsets = {parts[0]: float(parts[1]), parts[2]: float(parts[3])}
                 position = printer.jog_xy(offsets["x"], offsets["y"])
             elif len(parts) == 2 and parts[0] in ("x", "y", "z"):
                 position = printer.jog(parts[0], float(parts[1]))
             else:
-                print("Use: home, center, position, x MM, y MM, x MM y MM, z MM, quit/exit/q")
+                print("Use: home, center, position, x MM, y MM, x MM y MM, z MM, g2/g3 X Y I J, quit/exit/q")
                 continue
             print("Firmware position: " + " ".join(f"{a.upper()}={v:g}" for a, v in position.items()))
         except ValueError as exc:

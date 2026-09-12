@@ -133,6 +133,28 @@ move axes by hand during a session. Rehome if motors release or position becomes
 uncertain; do not leave a motion session unattended. No homed state is saved
 across connections. A physical limit switch is not a substitute for these bounds.
 
+## Arcs and circles
+
+At the manual prompt, use `g2 X Y I J` clockwise or `g3 X Y I J`
+counterclockwise. Supply four numbers in millimeters: X/Y are endpoint offsets
+from the current position, and I/J are center offsets from the current position.
+For example, `g2 0 0 5 0` makes a full circle of radius 5 mm, with its center
+5 mm to the right of the starting pen position. `g3 10 0 5 0` makes a half-circle.
+These CLI endpoint values are relative, even though generated G-code uses
+absolute endpoints. Z stays unchanged; lift/lower the pen separately.
+
+Restart the CLI, `home`, then `center`. With Z=2, first try `g2 0 0 5 0`
+above the paper. After checking the path, use `z -2`, repeat the circle command,
+and `z 2` to lift. Enter commands individually. Arc speed uses `xy_feed`.
+Arcs require homing and check all swept extrema against printer travel limits;
+the linear `max_jog` cap does not apply to arcs. The configured drawing square
+is not enforced for manual arcs. Protocol errors stop the session.
+
+The implementation uses [Marlin G2/G3](https://marlinfw.org/docs/gcode/G002-G003.html)
+in the firmware's default XY plane, with I/J centers and no Z/extrusion motion.
+It waits for completion and checks reported endpoint coordinates. Arc support
+was reported by this printer; physical arc behavior still needs validation.
+
 ## Plotter drawing area
 
 `plotter/workspace.toml` records a 100 × 100 mm square centered on the nominal

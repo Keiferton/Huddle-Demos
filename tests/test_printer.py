@@ -162,6 +162,46 @@ class PrinterTests(unittest.TestCase):
         worker.join()
         self.assertEqual(self.commands, ["M400", "M114"])
 
+    def test_arc_circle_and_half_circle_wire_commands(self):
+        self.motion_config()
+        self.printer._homed = True
+        for direction, x, y, i, j in [("g2", 0, 0, 5, 0), ("g3", 10, 0, 5, 0)]:
+            before = b"X:100 Y:100 Z:2\nok\n"
+            after = f"X:{100+x} Y:{100+y} Z:2\nok\n".encode()
+            worker = self.sequence([b"ok\n", before] + [b"ok\n"] * 4 + [after])
+            with patch("builtins.input", side_effect=[f"{direction} {x} {y} {i} {j}", "exit"]), patch("builtins.print"):
+                manual_session(self.printer)
+            worker.join()
+            self.assertEqual(self.commands, ["M400", "M114", "G21", "G90",
+                f"{direction.upper()} X{100+x:.4f} Y{100+y:.4f} I{i:.4f} J{j:.4f} F300.0000",
+                "M400", "M114"])
+
+    def test_arc_rejects_invalid_without_writes(self):
+        self.motion_config()
+        with self.assertRaisesRegex(ValueError, "Run home"):
+            self.printer.arc("g2", 0, 0, 5, 0)
+        self.printer._homed = True
+        for params in [("g1", 0, 0, 5, 0), ("g2", 0, 0, 0, 0),
+                       ("g2", 1, 0, 5, 0), ("g3", 0, 0, float("nan"), 0)]:
+            with self.assertRaises(ValueError):
+                self.printer.arc(*params)
+        self.assertFalse(select.select([self.master], [], [], 0)[0])
+
+    def test_arc_checks_sweep_not_only_endpoints(self):
+        self.motion_config()
+        self.printer._homed = True
+        for direction, x, y, i, j in [("g3", 0, 10, 0, 5), ("g2", 0, 0, 5, 0)]:
+            worker = self.sequence([b"ok\n", b"X:219 Y:100 Z:2\nok\n"])
+            with self.assertRaisesRegex(ValueError, "outside configured"):
+                self.printer.arc(direction, x, y, i, j)
+            worker.join()
+            self.assertEqual(self.commands, ["M400", "M114"])
+        # Clockwise takes the other half of the same circle and stays inside.
+        worker = self.sequence([b"ok\n", b"X:219 Y:100 Z:2\nok\n"] +
+                               [b"ok\n"] * 4 + [b"X:219 Y:110 Z:2\nok\n"])
+        self.assertEqual(self.printer.arc("g2", 0, 10, 0, 5), dict(x=219, y=110, z=2))
+        worker.join()
+
     def test_xy_move_rejects_unhomed_or_outside_limits(self):
         self.motion_config()
         with self.assertRaisesRegex(ValueError, "Run home"):

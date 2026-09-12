@@ -223,12 +223,53 @@ class Printer:
         self._check_position(target)
         return self._move_axis("xy", current, target)
 
+    def arc(self, direction, x, y, i, j):
+        """XY arc: relative endpoint X/Y and relative center I/J; Z unchanged.
+
+        Uses Marlin's default XY arc plane. This interface never changes planes.
+        """
+        self.require_limits()
+        if not self._homed:
+            raise ValueError("Run home in this session before arcs")
+        if direction not in ("g2", "g3"):
+            raise ValueError("Arc direction must be g2 or g3")
+        if not all(math.isfinite(v) for v in (x, y, i, j)):
+            raise ValueError("Arc coordinates must be finite")
+        x, y, i, j = (round(v, 4) for v in (x, y, i, j))
+        radius = math.hypot(i, j)
+        if radius == 0 or not math.isfinite(radius):
+            raise ValueError("Arc needs a finite nonzero center offset I/J")
+        if abs(math.hypot(x - i, y - j) - radius) > 0.001:
+            raise ValueError("Arc endpoint must lie on the circle defined by I/J")
+        current = self.position()
+        self._check_position(current)
+        target = dict(current, x=round(current["x"] + x, 4), y=round(current["y"] + y, 4))
+        self._check_position(target)
+        cx, cy = current["x"] + i, current["y"] + j
+        start = math.atan2(-j, -i)
+        end = math.atan2(y - j, x - i)
+        sign = -1 if direction == "g2" else 1
+        sweep = math.tau if x == 0 and y == 0 else (sign * (end - start)) % math.tau
+        # Check extrema on the swept arc, not just its endpoint.
+        for angle, px, py in ((0, cx + radius, cy), (math.pi / 2, cx, cy + radius),
+                              (math.pi, cx - radius, cy), (3 * math.pi / 2, cx, cy - radius)):
+            if (sign * (angle - start)) % math.tau <= sweep + 1e-10:
+                self._check_position(dict(x=px, y=py))
+        self._send("G21")
+        self._send("G90")
+        self._send(f"{direction.upper()} X{target['x']:.4f} Y{target['y']:.4f} "
+                   f"I{i:.4f} J{j:.4f} F{self.config.xy_feed:.4f}", self.config.motion_timeout)
+        return self._verify_target(target)
+
     def _move_axis(self, axis, current, target):
         feed = self.config.z_feed if axis == "z" else self.config.xy_feed
         self._send("G21")
         self._send("G90")
         coordinates = " ".join(f"{a.upper()}{target[a]:.4f}" for a in axis)
         self._send(f"G1 {coordinates} F{feed:.4f}")
+        return self._verify_target(target)
+
+    def _verify_target(self, target):
         actual = self.position()
         if any(abs(actual[a] - target[a]) > 0.05 for a in "xyz"):
             self.close()
