@@ -131,6 +131,22 @@ move axes by hand during a session. Rehome if motors release or position becomes
 uncertain; do not leave a motion session unattended. No homed state is saved
 across connections. A physical limit switch is not a substitute for these bounds.
 
+## Plotter drawing area
+
+`plotter/workspace.toml` records a 100 × 100 mm square centered on the nominal
+220 × 220 mm bed: the pen covers bed X/Y 60–160 mm. Drawing coordinates run
+from (0, 0) to (100, 100), with (50, 50) at the center.
+
+Using the estimated pen offset X=-26.25 mm and Y=0 mm, the corresponding machine
+bounds are X=86.25–186.25 and Y=60–160 mm. The center is X=136.25, Y=110.
+The estimate assumes the original nozzle was centered on the measured 63.5 mm
+E plate and the pen center is 5.5 mm inward from its left edge. Verify alignment
+with the mounted pen; its front/back offset has not been measured.
+
+This file is saved for the upcoming drawing code. The current manual CLI does
+not load or enforce drawing bounds; `ender3.toml` still defines printer travel
+limits so homing remains possible. Pen-up/down Z heights are not yet calibrated.
+
 ## Configuration and logging
 
 ```bash

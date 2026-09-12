@@ -1,0 +1,12 @@
+# Drawing area for the pen, separate from the printer travel/homing limits.
+# Local drawing coordinates: X 0..100, Y 0..100 mm.
+# Machine coordinates = origin + local drawing coordinates.
+# Centered on the nominal 220 x 220 mm bed, with estimated pen offset:
+# X=-26.25 mm (nozzle assumed centered on 63.5 mm E plate), Y=0 mm.
+# Verify alignment with the mounted pen before drawing.
+# Saved for the drawing implementation; the manual CLI does not load this file.
+[workspace]
+width = 100.0
+height = 100.0
+origin_x = 86.25
+origin_y = 60.0
