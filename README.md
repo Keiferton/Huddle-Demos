@@ -114,7 +114,7 @@ quit, disconnects, and timeouts **do not stop a move already accepted by the
 printer**; use the physical power switch if motion is unsafe.
 
 The session stays connected and requires its own successful `home` before any
-jog. Each jog is limited to 5 mm by `max_jog`; negative increments are supported
+jog. The Ender 3 profile allows jogs up to 100 mm with `max_jog`; negative increments are supported
 within the configured bounds. The Ender 3 profile uses `xy_feed=3000` and `z_feed=240` mm/min
 (50 and 4 mm/s); firmware feed overrides may affect actual speed. Keep the LCD
 speed override at 100%. Homing uses firmware speeds. Motion acknowledgment and
@@ -143,9 +143,12 @@ The estimate assumes the original nozzle was centered on the measured 63.5 mm
 E plate and the pen center is 5.5 mm inward from its left edge. Verify alignment
 with the mounted pen; its front/back offset has not been measured.
 
-This file is saved for the upcoming drawing code. The current manual CLI does
-not load or enforce drawing bounds; `ender3.toml` still defines printer travel
-limits so homing remains possible. The mounted pen was calibrated at Z=0 for
+The manual `center` command loads this file (override with `--workspace PATH`).
+After `home`, enter `center`: it lifts to Z=2 (or retains a higher current Z),
+then moves X and Y to the workspace center, waiting for each axis to finish.
+Keep the route clear of clips and check the estimated center visually.
+Individual jogs still use printer travel limits from `ender3.toml`, not drawing
+bounds, so homing and positioning outside the drawing square remain possible. The mounted pen was calibrated at Z=0 for
 contact and Z=2 mm for clearance, recorded in the workspace file’s [pen] section.
 Recheck these heights if the pen, paper thickness, or Z home reference changes.
 

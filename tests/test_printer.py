@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 from dataclasses import replace
 
+from plotter.cli import center_pen
 from shared.config import PrinterConfig, load_config
 from shared.printer import Printer, PrinterError
 
@@ -118,6 +119,33 @@ class PrinterTests(unittest.TestCase):
             "M400", "M114", "G21", "G90", "G1 Z1.0000 F240.0000", "M400", "M114"])
         self.printer.close()
         self.assertFalse(self.printer._homed)
+
+    def test_center_lifts_before_xy(self):
+        self.printer.config = replace(load_config("ender3.toml"),
+            port=self.printer.config.port, timeout=0.15, startup_wait=0, motion_timeout=0.2)
+        self.printer._homed = True
+        positions = [b"X:-3 Y:-10 Z:0\nok\n", b"X:-3 Y:-10 Z:2\nok\n",
+                     b"X:136.25 Y:-10 Z:2\nok\n", b"X:136.25 Y:110 Z:2\nok\n"]
+        replies = [b"ok\n", positions[0]]
+        for before, after in zip(positions, positions[1:]):
+            replies += [b"ok\n", before] + [b"ok\n"] * 4 + [after]
+        worker = self.sequence(replies)
+        self.assertEqual(center_pen(self.printer, "plotter/workspace.toml"),
+                         dict(x=136.25, y=110, z=2))
+        worker.join()
+        self.assertEqual([c for c in self.commands if c.startswith("G1 ")],
+                         ["G1 Z2.0000 F240.0000", "G1 X136.2500 F3000.0000",
+                          "G1 Y110.0000 F3000.0000"])
+
+    def test_absolute_move_rejects_unhomed_or_outside_limits(self):
+        self.motion_config()
+        with self.assertRaisesRegex(ValueError, "Run home"):
+            self.printer.move_to("x", 100)
+        self.printer._homed = True
+        for axis, value in [("z", 201), ("x", -1), ("y", float("nan"))]:
+            with self.assertRaises(ValueError):
+                self.printer.move_to(axis, value)
+        self.assertFalse(select.select([self.master], [], [], 0)[0])
 
     def test_motion_requires_limits_and_session_home(self):
         with self.assertRaises(ValueError):

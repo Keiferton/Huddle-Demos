@@ -4,7 +4,7 @@
 # Centered on the nominal 220 x 220 mm bed, with estimated pen offset:
 # X=-26.25 mm (nozzle assumed centered on 63.5 mm E plate), Y=0 mm.
 # Verify alignment with the mounted pen before drawing.
-# Saved for the drawing implementation; the manual CLI does not load this file.
+# The manual center command loads this file; jogs use printer travel limits.
 [workspace]
 width = 100.0
 height = 100.0

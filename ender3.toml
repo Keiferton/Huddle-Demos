@@ -17,4 +17,4 @@ z_max = 200.0
 # Feed rates in mm/min: XY 50 mm/s, Z 4 mm/s.
 xy_feed = 3000.0
 z_feed = 240.0
-max_jog = 5.0
+max_jog = 100.0

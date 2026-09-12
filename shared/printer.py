@@ -178,6 +178,24 @@ class Printer:
         target = dict(current)
         target[axis] = round(current[axis] + distance, 4)
         self._check_position(target)
+        return self._move_axis(axis, current, target)
+
+    def move_to(self, axis, value):
+        """Move one axis to an absolute coordinate within configured travel limits."""
+        self.require_limits()
+        if not self._homed:
+            raise ValueError("Run home in this session before positioning")
+        if axis not in ("x", "y", "z") or not math.isfinite(value):
+            raise ValueError("Specify x, y, or z and a finite coordinate")
+        self._check_position({axis: value})
+        current = self.position()
+        self._check_position(current)
+        target = dict(current)
+        target[axis] = round(value, 4)
+        self._check_position(target)
+        return self._move_axis(axis, current, target)
+
+    def _move_axis(self, axis, current, target):
         feed = self.config.z_feed if axis == "z" else self.config.xy_feed
         self._send("G21")
         self._send("G90")

@@ -2,6 +2,9 @@
 
 import argparse
 import logging
+import math
+from pathlib import Path
+import tomllib
 
 import serial
 
@@ -18,6 +21,7 @@ def main(argv=None):
     for option in (status, motion):
         add_connection_arguments(option)
     status.add_argument("--query", choices=["firmware", "temperature"], default="firmware")
+    motion.add_argument("--workspace", default="plotter/workspace.toml", help="Drawing workspace and pen heights")
     args = parser.parse_args(argv)
     return run(args)
 
@@ -51,7 +55,7 @@ def run(args):
             printer = Printer(config)
             printer.require_limits()
             with printer:
-                manual_session(printer)
+                manual_session(printer, args.workspace)
             return 0
         with Printer(config) as printer:
             printer.send_gcode("M115" if args.query == "firmware" else "M105")
@@ -65,9 +69,9 @@ def run(args):
         return 130
 
 
-def manual_session(printer):
-    print("Connected. No motion until you enter home or an axis jog.")
-    print("Commands: home, position, x MM, y MM, z MM, quit")
+def manual_session(printer, workspace="plotter/workspace.toml"):
+    print("Connected. No motion until you enter home, center, or an axis jog.")
+    print("Commands: home, center, position, x MM, y MM, z MM, quit")
     print("Home first. Enter ONE command at a time and inspect each move.")
     print("Keep the area clear and the power switch accessible. Ctrl+C is NOT an emergency stop.")
     print("Do not move axes by hand or use LCD movement during this session.")
@@ -88,13 +92,39 @@ def manual_session(printer):
         try:
             if parts == ["home"]:
                 position = printer.home()
+            elif parts == ["center"]:
+                position = center_pen(printer, workspace)
             elif parts == ["position"]:
                 position = printer.position()
             elif len(parts) == 2 and parts[0] in ("x", "y", "z"):
                 position = printer.jog(parts[0], float(parts[1]))
             else:
-                print("Use: home, position, x MM, y MM, z MM, quit")
+                print("Use: home, center, position, x MM, y MM, z MM, quit")
                 continue
             print("Firmware position: " + " ".join(f"{a.upper()}={v:g}" for a, v in position.items()))
         except ValueError as exc:
             print(f"Rejected: {exc}")
+
+
+def center_pen(printer, path):
+    with Path(path).open("rb") as file:
+        settings = tomllib.load(file)
+    try:
+        area, pen = settings["workspace"], settings["pen"]
+        values = [area[k] for k in ("origin_x", "origin_y", "width", "height")]
+        values += [pen["up_z"], pen["down_z"]]
+    except (KeyError, TypeError) as exc:
+        raise ValueError("Workspace needs origin_x/y, width/height, and pen up_z/down_z") from exc
+    if any(type(v) not in (int, float) or not math.isfinite(v) for v in values):
+        raise ValueError("Workspace and pen values must be finite numbers")
+    ox, oy, width, height, up, down = values
+    if width <= 0 or height <= 0 or up <= down:
+        raise ValueError("Workspace dimensions must be positive and pen-up must exceed pen-down")
+    printer.require_limits()
+    printer._check_position(dict(x=ox, y=oy, z=down))
+    printer._check_position(dict(x=ox + width, y=oy + height, z=up))
+    # Never lower a pen that is already higher than its calibrated clearance.
+    current = printer.position()
+    printer.move_to("z", max(up, current["z"]))
+    printer.move_to("x", ox + width / 2)
+    return printer.move_to("y", oy + height / 2)
